@@ -1,0 +1,161 @@
+Team member 1 - Name - Rushikesh Nalla
+		ID - 201401106
+Team member 2 - Name - Omkar Damle
+		ID - 201401114
+		
+MACROS defined -
+
+We have defined the following segregation classes, after doing lot of trial and error we found these set of classes yield maximum throughput and utilisation -
+#define MAXSIZE_CLASS_0 (8 * WSIZE)
+#define MAXSIZE_CLASS_1 (16 * WSIZE)
+#define MAXSIZE_CLASS_2 (32 * WSIZE)
+#define MAXSIZE_CLASS_3 (64 * WSIZE)
+#define MAXSIZE_CLASS_4 (128 * WSIZE)
+#define MAXSIZE_CLASS_5 (256 * WSIZE)
+#define MAXSIZE_CLASS_6 (512 * WSIZE)
+#define MAXSIZE_CLASS_7 (1024 * WSIZE)
+#define MAXSIZE_CLASS_8 (2048 * WSIZE)
+#define MAXSIZE_CLASS_9 (4096 * WSIZE)
+
+We have defined the following macros for getting the previous and next blocks in a particular free list class-
+#define EXP_GET_PREV_BLKP(bp) GET((unsigned int**)bp)
+#define EXP_GET_NEXT_BLKP(bp) GET((unsigned int**)(bp) + 1)
+
+We have defined the following macros for setting the previous and next blocks in a particular free list class-
+#define EXP_SET_NEXT_BLKP(bp, next_block_ptr) PUT((unsigned int**)(bp) + 1, next_block_ptr)
+#define EXP_SET_PREV_BLKP(bp, prev_block_ptr) PUT((unsigned int**)bp, prev_block_ptr) 
+
+The following pointer has been defined to keep reference of the segregation classes -
+static unsigned int** segregation_classes;
+
+
+
+
+
+
+
+These functions are defined exclusively for segregated list implementation -
+1. static void add_block_in_segregated_list(void* bp , int class);
+
+ This function is used to add a block to its segregated free list class. The block is added to the beginning of the list.
+
+2. static void remove_from_list(void* bp, int class);
+
+ This function is used to remove a block from its segregated free list class as it is going to be allocated.
+
+3. static void place_segregated_list(void* bp ,size_t asize);
+
+ This function is used for splitting the block if all the space in that block is not required and that extra block created is added to the appropriate free list class.
+
+4. static int get_class_from_size(size_t asize);
+
+ This function returns the appropriate class given a particular size.
+
+5. static int get_class(void* bp);
+ 
+ This function returns the appropriate class given a pointer to the block.
+ 
+6. static size_t extra_realloc_size(size_t size);
+
+ This function returns the newsize which is by adding a buffer(in this case multiplying by 16). This buffer is required so that if realloc is called again on the same block reallocation can be done in place. Also we need to set a limit for the extra space provided(in this case 6*pagesize). 
+
+7. static void* find_fit_by_class_pseudo_best_fit(size_t asize , int class);
+
+ This function is used for finding the best suitable free block for allocation in this we use pseudo best fit strategy in which we check upto 5 blocks which satisfy the size requirement and return the block with the minimum size(best) among them. This decreases throughput by some amount but increases utilisation significantly.
+
+
+
+
+
+
+
+The following have been implemented which are the heap consistency checker routines: These checker function calls have been commented out in the code which are called the checkheap routine. These checker functions have been run(checked) and all of them work correctly.
+1. static void mm_check_free(); 
+
+ This function checks whether every block in the free list has been marked free by checking the allocation bit.
+
+2. static void mm_check_coalescing();
+
+ This function checks if there are any contiguous free blocks that have escaped coalescing by checking the previous and next blocks allocation bit.
+
+3. static void check_pointer_in_heap();
+
+ This function checks if all the pointers (There are two types of pointers 1) segregation list pointers and 2) pointers(prev and next) in a free block) in a heap block point to valid heap addresses.
+
+4. static void check_freelist_completeness();
+
+ This function checks if every free block is in the freelist by running an outer loop for running all the free blocks and an inner loop to find in the block in the freelist. 
+
+
+
+
+The block (both allocated and free) structure for 32 bit is as shown below -
+
+ < Allocated Block >
+ 
+ 
+             31 30 29 28 27 26 25 24 23 22 21 20 19 18 17 16 15 14 13 12 11 10  9  8  7  6  5  4  3  2  1  0
+            +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+ Header :   |                              size of the block                                       |  |  | A|
+    bp ---> +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+            |                                                                                               |
+            |                                                                                               |
+            .                              Payload and padding                                              .
+            .                                                                                               .
+            .                                                                                               .
+            +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+ Footer :   |                              size of the block                                       |     | A|
+            +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+ 
+ 
+ < Free block >
+ 
+             31 30 29 28 27 26 25 24 23 22 21 20 19 18 17 16 15 14 13 12 11 10  9  8  7  6  5  4  3  2  1  0
+            +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+ Header :   |                              size of the block                                       |  |  | A|
+    bp ---> +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+            |                        pointer to its predecessor in Segregated list                          |
+bp+WSIZE--> +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+            |                        pointer to its successor in Segregated list                            |
+            +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+            .                                                                                               .
+            .                                                                                               .
+            .                                                                                               .
+            +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+ Footer :   |                              size of the block                                       |     | A|
+            +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+
+
+
+Our dynamic storage allocator will consist of the following four functions, which are
+declared in mm.h and defined in mm.c.
+
+1.  int mm_init(void);
+ This function is used to initialise the segregated list pointers and making the prologue and the epilogue.
+The segregated list pointers are stored before the prologue and alignment block. They are initialised to NULL.
+They will eventually contain pointers to the first member in the respective segregated list class. Finally, The heap is extended by CHUNKSIZE and mm_init() returns.
+
+
+2.  void *mm_malloc(size_t size); 
+	
+ In this we find the class which is best suited for the required size. We search through that free list class to find a suitable free block. Instead of using a first fit algorithm we have used a pseudo best  fit strategy. In this strategy, we look at 5 suitable blocks(whose size is greater than or equal to required size) and choose the best among them which reduces internal fragmentation.
+The throughput reduces slightly but the utilisation improves significantly. If we don't find any suitable block in that free list class we look at next larger class and repeat the procedure. We go on until we find a suitable block. Finally in worst case scenario we extend the heap. 
+
+ When we find a suitable block by calling find_fit_by_class_pseudo_best_fit(asize , i); we remove it from the respective free list class and split it if required using the place_segregated_list(bp ,asize); function. In this function if a split is feasible its done otherwise the entire block is allocated. If a split is done, the newly created free block is added in the a  appropriate class free list. Finally if we don't find a suitable block, we extend the heap.
+ 
+3.  void mm_free(void *ptr);
+ 
+ This function is used for freeing the block.
+ In this routine coalesce is called where we check whether the previous and the next blocks are allocated or not and the four cases are-
+ 1.if the prev block is free then we coalesce both the blocks and remove the present block from the free list class and add the prev block
+ 2.if the next block is free then we coalesce both the blocks and remove the next block from the free list class and add the present block
+ 3.if both the next and prev block is free then we coalesce all the 3 blocks and remove the prev and next block from the free list class and add the whole block
+ 4.if both are allocated then we add the same block to the list.
+
+4.  void *mm_realloc(void *ptr, size_t size);
+
+ In the function requests for a block of a particular size is handled. If we need size zero then free() is called. If the realloc'd block has previously been given more size than it needs, then this realloc request may be serviced within the same block. If the next block is free and the size of the combined block(present and next) is larger or equal to the requested size then we can do in place allocation itself. This saves us from calling malloc() and doing memcpy() everytime. Now if we cant realloc in place, then we need to malloc. While mallocing make sure you keep some extra space at the end of the block so that if a new reallocation request comes, it can be handled in place. If the size requested is less than the current block size then copy only that much data into the block and then free the old block.
+
+
+
+
